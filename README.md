@@ -1,2 +1,1 @@
-# web-scripts
-learn javascript by writing script
+1. leave bilibili
