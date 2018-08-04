@@ -1,2 +1,2 @@
-1. leave bilibili
+1. bilibili notification
 

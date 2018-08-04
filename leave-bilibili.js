@@ -1,68 +1,93 @@
 // ==UserScript==
-// @name         leave bilibili
+// @name         bilibili notification
 // @namespace    http://tampermonkey.net/
 // @version      0.1
-// @description  close bilibili page
+// @description  notificate per 10 minutes
 // @author       hahahaha123567
-// @match        https://www.bilibili.com/
+// @match        https://*.bilibili.com/*
 // @grant        none
 // ==/UserScript==
+
+// time is calculated independently in different domain
+// such as: time in www.bilibili.com and in live.bilibili.com is different
 
 (function () {
     'use strict';
 
 	// info
-	let cookies = document.cookie;
-    let userId = cookies.match(/DedeUserID=(\d+)/)[1];
+	const cookie = document.cookie;
+    const userId = cookie.match(/DedeUserID=(\d+)/)[1];
     let data;
-    $.post("https://space.bilibili.com/ajax/member/GetInfo", {mid:userId}, function(result){
+    $.post("https://space.bilibili.com/ajax/member/GetInfo", {mid:userId}, function(result) {
         data = result.data;
     });
     let title = "otaku";
     let body = "再不学习要没饭吃了";
-    let icon = "https://www.bilibili.com/favicon.ico";
-    let link = "https://leetcode-cn.com/problemset/algorithms/";
 
-    localStorage.setItem('testTime', 0)
+    // variables in localStorage, prefix: 'ls'
+    // update lsDate and lsTime
+    const lsDate = localStorage.getItem('lsDate');
+    const today = new Date().getDate().toString();
+    if (lsDate == undefined) {
+        localStorage.setItem('lsDate', today);
+    } else {
+        if (today !== lsDate) {
+            localStorage.setItem('lsDate', today);
+            localStorage.setItem('lsTime', 0);
+        }
+    }
 
     setInterval(
         () => {
-            let time = parseInt(localStorage.getItem('testTime'), 10);
+            let timeString = localStorage.getItem('lsTime');
+            if (timeString == undefined) {
+                timeString = '0';
+            }
+            let time = parseInt(timeString, 10);
             time++;
-            localStorage.setItem('testTime', time);
-            if (time < 3) return;
-            title = data.name;
-            let hour = 0, minute = 0, second = 0;
-            second = time % 60;
-            minute = Math.floor(time/60) % 60;
-            hour = Math.floor(time / 60 / 60);
+            localStorage.setItem('lsTime', time);
+            if (data.name !== undefined) {
+                title = data.name;
+            }
             body = '今天你在bilibili花了 ';
-            if (hour > 0) {
-                body += hour;
-                body += '小时 ';
-            }
-            if (minute > 0) {
-                body += minute;
-                body += '分钟';
-            }
-            body += second;
-            body += '秒';
-            if (second === 0 && minute > 0 && minute % 10 === 0) {
-                createNotification(title, body, icon, link);
+            body = formatBody(body, time);
+            if (time > 0 && time % 600 === 0) {
+                createNotification(title, body);
             }
         }, 1000
     );
 })();
 
-function createNotification (title, body, icon, link) {
-    let options = {
+function formatBody (body, time) {
+    const hour = Math.floor(time / 60 / 60);
+    const minute = Math.floor(time / 60) % 60;
+    const second = time % 60;
+    if (hour > 0) {
+        body += hour;
+        body += '小时 ';
+    }
+    if (minute > 0) {
+        body += minute;
+        body += '分钟 ';
+    }
+    if (second > 0) {
+        body += second;
+        body += '秒';
+    }
+    return body;
+}
+
+function createNotification (title, body) {
+    const options = {
         body: body,
-        icon: icon
+        icon: "https://www.bilibili.com/favicon.ico",
     };
+    const link = "https://leetcode-cn.com/problemset/algorithms";
+
     Notification.requestPermission().then(function(result) {
         console.log(result);
     });
-    let notification = new Notification(title, options);
+    const notification = new Notification(title, options);
     notification.onclick = function() {
         this.close();
         window.close();
