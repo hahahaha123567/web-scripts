@@ -22,7 +22,8 @@
         data = result.data;
     });
     let title = "otaku";
-    let body = "再不学习要没饭吃了";
+    // notificate interval
+    const interval = 600;
 
     // variables in localStorage, prefix: 'ls'
     // update lsDate and lsTime
@@ -49,19 +50,19 @@
             if (data.name !== undefined) {
                 title = data.name;
             }
-            body = '今天你在bilibili花了 ';
-            body = formatBody(body, time);
-            if (time > 0 && time % 600 === 0) {
+            const body = createBody(time);
+            if (time > 0 && time % interval === 0) {
                 createNotification(title, body);
             }
         }, 1000
     );
 })();
 
-function formatBody (body, time) {
+function createBody (time) {
     const hour = Math.floor(time / 60 / 60);
     const minute = Math.floor(time / 60) % 60;
     const second = time % 60;
+    let body = '今天你在 ' + document.location.host + ' 花了 ';
     if (hour > 0) {
         body += hour;
         body += '小时 ';
