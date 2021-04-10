@@ -1,0 +1,18 @@
+// ==UserScript==
+// @name         bilibili个人空间
+// @namespace    http://tampermonkey.net/
+// @version      0.1
+// @description  订阅页面自动选择[在看]
+// @author       hahahaha123567
+// @match        *://space.bilibili.com/*/bangumi
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // 页面全部加载完成后才能获取到内容元素
+    window.onload=function(){
+        document.querySelector("#page-bangumi > div > div.sub-tabs.clearfix > div > div > ul > li:nth-child(3)").click();
+    };
+})();
