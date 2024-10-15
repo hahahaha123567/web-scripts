@@ -1,18 +1,39 @@
 // ==UserScript==
-// @name         bilibili个人空间
+// @name         Bilibili Auto Click "Watching"
 // @namespace    http://tampermonkey.net/
 // @version      0.1
-// @description  订阅页面自动选择[在看]
-// @author       hahahaha123567
-// @match        *://space.bilibili.com/*/bangumi
+// @description  自动点击Bilibili空间页面的“在看”选项
+// @author       You
+// @match        *://space.bilibili.com/*
 // @grant        none
 // ==/UserScript==
 
 (function() {
     'use strict';
 
-    // 页面全部加载完成后才能获取到内容元素
-    window.onload=function(){
-        document.querySelector("#page-bangumi > div > div.sub-tabs.clearfix > div > div > ul > li:nth-child(3)").click();
-    };
+    // 等待页面加载完成
+    window.addEventListener('load', function() {
+
+        // 定义一个函数来查找并点击“在看”按钮
+        function clickWatching() {
+            // 查找包含筛选项的父级元素
+            let dropdownItems = document.querySelectorAll('.be-dropdown-item');
+
+            if (dropdownItems.length > 0) {
+                // 遍历找到包含“在看”的项
+                dropdownItems.forEach(item => {
+                    if (item.innerText === '在看') {
+                        console.log('找到“在看”按钮，模拟点击...');
+                        item.click(); // 模拟点击“在看”按钮
+                    }
+                });
+            } else {
+                console.log('未找到筛选项，可能页面还未完全加载。');
+            }
+        }
+
+        // 延时一段时间再查找元素，确保页面已经完全加载
+        setTimeout(clickWatching, 3000); // 延时3秒后执行点击操作
+
+    }, false);
 })();
