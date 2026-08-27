@@ -2,7 +2,7 @@
 // @name         Steam 畅销榜隐藏已忽略游戏
 // @name:en      Steam Weekly Charts - Hide Ignored
 // @namespace    https://github.com/hahahaha123567/web-scripts
-// @version      1.2.0
+// @version      1.2.1
 // @description  在 Steam 畅销榜快速忽略游戏，并隐藏或置灰已忽略游戏
 // @description:en Hide or dim ignored games on Steam weekly top sellers
 // @author       hahahaha123567
@@ -80,18 +80,18 @@
                 white-space: nowrap;
             }
 
-            .steam-quick-ignore-container {
-                position: relative !important;
-            }
-
-            .steam-quick-ignore-layer {
+            #steam-quick-ignore-layer {
                 position: absolute;
-                inset: 0;
-                z-index: 30;
+                top: 0;
+                left: 0;
+                z-index: 10001;
+                width: 0;
+                height: 0;
+                overflow: visible;
                 pointer-events: none;
             }
 
-            .steam-quick-ignore-layer .steam-quick-ignore-button {
+            #steam-quick-ignore-layer .steam-quick-ignore-button {
                 pointer-events: auto;
             }
 
@@ -220,14 +220,10 @@
     const ignoredPackages = toSet(userdata.rgIgnoredPackages);
     const quickIgnoreButtons = new WeakMap();
     const quickIgnoreRows = new Set();
-    const quickIgnoreLayers = new WeakMap();
     const observedContainers = new Set();
+    let quickIgnoreLayer;
 
     addStyles();
-
-    console.log(
-        `[Steam Hide Ignored] ${ignoredApps.size} ignored apps loaded`
-    );
 
     /*
      * Steam uses generated/minified CSS class names, so don't depend on them.
@@ -268,6 +264,27 @@
         return link;
     }
 
+    function getGameName(link, appId) {
+        const label = link.getAttribute('aria-label') ||
+            link.querySelector('img[alt]')?.alt;
+        if (label?.trim()) return label.trim();
+
+        try {
+            const segments = new URL(link.href).pathname
+                .split('/')
+                .filter(Boolean);
+            const appIdIndex = segments.indexOf(appId);
+            const slug = segments[appIdIndex + 1];
+            if (slug) {
+                return decodeURIComponent(slug).replaceAll('_', ' ');
+            }
+        } catch {
+            // Fall back to the AppID when Steam provides a malformed URL.
+        }
+
+        return `App ${appId}`;
+    }
+
     function setRowMode(row, ignored) {
         row.classList.toggle(
             'steam-hide-ignored-hidden',
@@ -296,9 +313,21 @@
     }
 
     function getSessionId() {
-        return typeof window.g_sessionID === 'string' && window.g_sessionID
-            ? window.g_sessionID
-            : document.querySelector('input[name="sessionid"]')?.value;
+        if (typeof window.g_sessionID === 'string' && window.g_sessionID) {
+            return window.g_sessionID;
+        }
+
+        const inputSessionId = document.querySelector(
+            'input[name="sessionid"]'
+        )?.value;
+        if (inputSessionId) return inputSessionId;
+
+        const sessionCookie = document.cookie
+            .split('; ')
+            .find(cookie => cookie.startsWith('sessionid='));
+        if (!sessionCookie) return null;
+
+        return decodeURIComponent(sessionCookie.slice('sessionid='.length));
     }
 
     async function ignoreApp(appId) {
@@ -334,19 +363,15 @@
         return row.parentElement;
     }
 
-    function ensureQuickIgnoreLayer(container) {
-        let layer = quickIgnoreLayers.get(container);
-        if (layer?.isConnected) {
-            return layer;
+    function ensureQuickIgnoreLayer() {
+        if (quickIgnoreLayer?.isConnected) {
+            return quickIgnoreLayer;
         }
 
-        container.classList.add('steam-quick-ignore-container');
-        layer = document.createElement('div');
-        layer.className = 'steam-quick-ignore-layer';
-        container.appendChild(layer);
-        quickIgnoreLayers.set(container, layer);
-        observeChartContainer(container);
-        return layer;
+        quickIgnoreLayer = document.createElement('div');
+        quickIgnoreLayer.id = 'steam-quick-ignore-layer';
+        document.body.appendChild(quickIgnoreLayer);
+        return quickIgnoreLayer;
     }
 
     function addQuickIgnoreButton(row, appId) {
@@ -362,6 +387,7 @@
 
         const container = getQuickIgnoreContainer(row);
         if (!container) return null;
+        observeChartContainer(container);
 
         const button = document.createElement('button');
         button.type = 'button';
@@ -389,7 +415,7 @@
             }
         });
 
-        ensureQuickIgnoreLayer(container).appendChild(button);
+        ensureQuickIgnoreLayer().appendChild(button);
         quickIgnoreButtons.set(row, button);
         quickIgnoreRows.add(row);
         row.dataset.steamQuickIgnoreAppId = appId;
@@ -398,15 +424,12 @@
     }
 
     function positionQuickIgnoreButton(row, button) {
-        const layer = button.parentElement;
-        const container = layer?.parentElement;
-        if (!container || !row.isConnected) {
+        if (!button.isConnected || !row.isConnected) {
             button.style.display = 'none';
             return;
         }
 
         const rowRect = row.getBoundingClientRect();
-        const containerRect = container.getBoundingClientRect();
         if (
             !rowRect.width ||
             !rowRect.height ||
@@ -418,9 +441,8 @@
 
         button.style.display = 'block';
         const gap = 8;
-        const rowLeft = rowRect.left - containerRect.left + container.scrollLeft;
-        const rowCenter = rowRect.top - containerRect.top +
-            container.scrollTop + rowRect.height / 2;
+        const rowLeft = window.scrollX + rowRect.left;
+        const rowCenter = window.scrollY + rowRect.top + rowRect.height / 2;
         const left = Math.max(4, rowLeft - button.offsetWidth - gap);
         button.style.left = `${left}px`;
         button.style.top = `${rowCenter}px`;
@@ -456,10 +478,7 @@
         delete row.dataset.steamQuickIgnoreAppId;
     }
 
-    function markIgnoredRow(row, id, ignored) {
-        if (ignored && !row.dataset.hideIgnoredProcessed) {
-            console.log('[Steam Hide Ignored] ignoring app', id);
-        }
+    function markIgnoredRow(row, ignored) {
         setRowMode(row, ignored);
     }
 
@@ -482,6 +501,7 @@
                 rows.set(row, {
                     id: match[1],
                     appId: match[1],
+                    name: getGameName(link, match[1]),
                     ignored: (current?.ignored || false) || ignoredApps.has(match[1])
                 });
             } else {
@@ -493,6 +513,7 @@
                     rows.set(row, {
                         id: match[1],
                         appId: current?.appId,
+                        name: current?.name || `Package ${match[1]}`,
                         ignored: (current?.ignored || false) || ignoredPackages.has(match[1])
                     });
                 }
@@ -507,8 +528,12 @@
             }
         });
 
-        rows.forEach(({ id, appId, ignored }, row) => {
-            markIgnoredRow(row, id, ignored);
+        const affectedGames = [];
+        rows.forEach(({ id, appId, name, ignored }, row) => {
+            markIgnoredRow(row, ignored);
+            if (ignored) {
+                affectedGames.push({ id: appId || id, name });
+            }
             if (appId) {
                 updateQuickIgnoreButton(row, appId, ignored);
             } else {
@@ -516,6 +541,19 @@
             }
         });
         repositionQuickIgnoreButtons();
+        return affectedGames;
+    }
+
+    function logInitialSummary(games) {
+        const uniqueGames = [...new Map(
+            games.map(game => [game.id, game])
+        ).values()];
+        const action = mode === HIDE_MODE ? '隐藏' : '置灰标记';
+        const details = uniqueGames.map(game => `${game.name} (${game.id})`);
+        console.log(
+            `[Steam Hide Ignored] 加载完成，共${action} ${uniqueGames.length} 个游戏`,
+            details
+        );
     }
 
     let filterScheduled = false;
@@ -533,7 +571,7 @@
 
     function isScriptElement(node) {
         return node instanceof Element && node.matches(
-            '.steam-quick-ignore-layer,' +
+            '#steam-quick-ignore-layer,' +
             '.steam-quick-ignore-button,' +
             '.steam-hide-ignored-badge,' +
             '#steam-hide-ignored-switch'
@@ -545,7 +583,7 @@
             return record.attributeName === 'href';
         }
 
-        if (record.target.closest?.('.steam-quick-ignore-layer')) {
+        if (record.target.closest?.('#steam-quick-ignore-layer')) {
             return false;
         }
 
@@ -606,7 +644,7 @@
 
     refreshObserverTargets();
     createModeSwitch(filterChart);
-    filterChart();
+    logInitialSummary(filterChart());
     window.addEventListener('resize', () => {
         window.requestAnimationFrame(repositionQuickIgnoreButtons);
     });
