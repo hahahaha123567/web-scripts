@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         Steam Weekly Charts - Hide Ignored
 // @namespace    local.steam.hideignored
-// @version      0.1
+// @version      1.0.0
 // @description  Restore old behavior: hide ignored games from Steam weekly top sellers
 // @match        https://store.steampowered.com/charts/topselling/*
 // @grant        none
+// @run-at       document-idle
 // ==/UserScript==
 
 (async function () {
@@ -21,20 +22,25 @@
         return new Set(Object.keys(value));
     }
 
-    const response = await fetch(
-        '/dynamicstore/userdata/?t=' + Date.now(),
-        {
-            credentials: 'include',
-            cache: 'no-store'
-        }
-    );
+    let userdata;
+    try {
+        const response = await fetch(
+            `/dynamicstore/userdata/?t=${Date.now()}`,
+            {
+                credentials: 'include',
+                cache: 'no-store'
+            }
+        );
 
-    if (!response.ok) {
-        console.warn('[Steam Hide Ignored] Failed to load userdata');
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        userdata = await response.json();
+    } catch (error) {
+        console.warn('[Steam Hide Ignored] Failed to load userdata', error);
         return;
     }
-
-    const userdata = await response.json();
 
     const ignoredApps = toSet(userdata.rgIgnoredApps);
     const ignoredPackages = toSet(userdata.rgIgnoredPackages);
@@ -50,6 +56,11 @@
      * of a container containing several chart entries.
      */
     function findChartRow(link) {
+        const tableRow = link.closest('tr');
+        if (tableRow) {
+            return tableRow;
+        }
+
         let node = link;
 
         while (
@@ -98,7 +109,7 @@
                             link.textContent.trim()
                         );
                         row.dataset.hideIgnoredProcessed = '1';
-                        row.style.display = 'none';
+                        row.style.setProperty('display', 'none', 'important');
                     }
 
                     return;
@@ -109,7 +120,7 @@
                 if (match && ignoredPackages.has(match[1])) {
                     const row = findChartRow(link);
                     row.dataset.hideIgnoredProcessed = '1';
-                    row.style.display = 'none';
+                    row.style.setProperty('display', 'none', 'important');
                 }
             });
     }
@@ -117,8 +128,17 @@
     filterChart();
 
     // React may render more rows after clicking "See all 100".
+    let filterScheduled = false;
     const observer = new MutationObserver(() => {
-        filterChart();
+        if (filterScheduled) {
+            return;
+        }
+
+        filterScheduled = true;
+        window.requestAnimationFrame(() => {
+            filterScheduled = false;
+            filterChart();
+        });
     });
 
     observer.observe(document.body, {
