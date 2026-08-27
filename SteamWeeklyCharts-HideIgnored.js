@@ -1,9 +1,15 @@
 // ==UserScript==
-// @name         Steam Weekly Charts - Hide Ignored
-// @namespace    local.steam.hideignored
-// @version      1.1.0
-// @description  Hide or dim ignored games on Steam weekly top sellers
+// @name         Steam 畅销榜隐藏已忽略游戏
+// @name:en      Steam Weekly Charts - Hide Ignored
+// @namespace    https://github.com/hahahaha123567/web-scripts
+// @version      1.1.1
+// @description  隐藏或置灰 Steam 畅销榜中已标记为“不感兴趣”的游戏
+// @description:en Hide or dim ignored games on Steam weekly top sellers
+// @author       hahahaha123567
+// @homepageURL  https://github.com/hahahaha123567/web-scripts/blob/master/SteamWeeklyCharts-HideIgnored.js
+// @supportURL   https://github.com/hahahaha123567/web-scripts/issues
 // @match        https://store.steampowered.com/charts/topselling/*
+// @noframes
 // @grant        none
 // @run-at       document-idle
 // ==/UserScript==
@@ -218,36 +224,43 @@
         return link;
     }
 
-    function setRowMode(row) {
+    function setRowMode(row, ignored) {
         row.classList.toggle(
             'steam-hide-ignored-hidden',
-            mode === HIDE_MODE
+            ignored && mode === HIDE_MODE
         );
         row.classList.toggle(
             'steam-hide-ignored-dimmed',
-            mode === DIM_MODE
+            ignored && mode === DIM_MODE
         );
 
         let badge = row.querySelector(':scope > .steam-hide-ignored-badge');
-        if (mode === DIM_MODE && !badge) {
+        if (ignored && mode === DIM_MODE && !badge) {
             badge = document.createElement('span');
             badge.className = 'steam-hide-ignored-badge';
             badge.textContent = '已忽略';
             row.appendChild(badge);
-        } else if (mode === HIDE_MODE && badge) {
+        } else if ((!ignored || mode === HIDE_MODE) && badge) {
             badge.remove();
+        }
+
+        if (ignored) {
+            row.dataset.hideIgnoredProcessed = '1';
+        } else {
+            delete row.dataset.hideIgnoredProcessed;
         }
     }
 
-    function markIgnoredRow(row, id) {
-        if (!row.dataset.hideIgnoredProcessed) {
+    function markIgnoredRow(row, id, ignored) {
+        if (ignored && !row.dataset.hideIgnoredProcessed) {
             console.log('[Steam Hide Ignored] ignoring app', id);
-            row.dataset.hideIgnoredProcessed = '1';
         }
-        setRowMode(row);
+        setRowMode(row, ignored);
     }
 
     function filterChart() {
+        const rows = new Map();
+
         document
             .querySelectorAll(
                 'a[href*="store.steampowered.com/app/"],' +
@@ -258,21 +271,32 @@
             .forEach(link => {
                 let match = link.href.match(/\/app\/(\d+)/);
 
-                if (match && ignoredApps.has(match[1])) {
+                if (match) {
                     const row = findChartRow(link);
+                    const current = rows.get(row);
+                    rows.set(row, {
+                        id: match[1],
+                        ignored: (current?.ignored || false) || ignoredApps.has(match[1])
+                    });
+                } else {
+                    match = link.href.match(/\/sub\/(\d+)/);
 
-                    markIgnoredRow(row, match[1]);
-
-                    return;
-                }
-
-                match = link.href.match(/\/sub\/(\d+)/);
-
-                if (match && ignoredPackages.has(match[1])) {
-                    const row = findChartRow(link);
-                    markIgnoredRow(row, match[1]);
+                    if (match) {
+                        const row = findChartRow(link);
+                        const current = rows.get(row);
+                        rows.set(row, {
+                            id: match[1],
+                            ignored: (current?.ignored || false) || ignoredPackages.has(match[1])
+                        });
+                    }
                 }
             });
+
+        // Reconcile every current row so reused React nodes cannot retain a
+        // hidden/dimmed state after changing the store country.
+        rows.forEach(({ id, ignored }, row) => {
+            markIgnoredRow(row, id, ignored);
+        });
     }
 
     createModeSwitch(filterChart);
