@@ -2,13 +2,14 @@
 // @name         Steam 畅销榜隐藏已忽略游戏
 // @name:en      Steam Weekly Charts - Hide Ignored
 // @namespace    https://github.com/hahahaha123567/web-scripts
-// @version      1.2.1
+// @version      1.2.2
 // @description  在 Steam 畅销榜快速忽略游戏，并隐藏或置灰已忽略游戏
 // @description:en Hide or dim ignored games on Steam weekly top sellers
 // @author       hahahaha123567
 // @homepageURL  https://github.com/hahahaha123567/web-scripts/blob/master/SteamWeeklyCharts-HideIgnored.js
 // @supportURL   https://github.com/hahahaha123567/web-scripts/issues
 // @match        https://store.steampowered.com/charts/topselling/*
+// @match        https://store.steampowered.com/charts/topsellers/*
 // @noframes
 // @grant        none
 // @run-at       document-idle
