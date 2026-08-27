@@ -1,0 +1,128 @@
+// ==UserScript==
+// @name         Steam Weekly Charts - Hide Ignored
+// @namespace    local.steam.hideignored
+// @version      0.1
+// @description  Restore old behavior: hide ignored games from Steam weekly top sellers
+// @match        https://store.steampowered.com/charts/topselling/*
+// @grant        none
+// ==/UserScript==
+
+(async function () {
+    'use strict';
+
+    function toSet(value) {
+        if (!value) return new Set();
+
+        // Steam historically used both array/object forms
+        if (Array.isArray(value)) {
+            return new Set(value.map(String));
+        }
+
+        return new Set(Object.keys(value));
+    }
+
+    const response = await fetch(
+        '/dynamicstore/userdata/?t=' + Date.now(),
+        {
+            credentials: 'include',
+            cache: 'no-store'
+        }
+    );
+
+    if (!response.ok) {
+        console.warn('[Steam Hide Ignored] Failed to load userdata');
+        return;
+    }
+
+    const userdata = await response.json();
+
+    const ignoredApps = toSet(userdata.rgIgnoredApps);
+    const ignoredPackages = toSet(userdata.rgIgnoredPackages);
+
+    console.log(
+        `[Steam Hide Ignored] ${ignoredApps.size} ignored apps loaded`
+    );
+
+    /*
+     * Steam uses generated/minified CSS class names, so don't depend on them.
+     *
+     * Starting from the app link, walk upward until we find the direct child
+     * of a container containing several chart entries.
+     */
+    function findChartRow(link) {
+        let node = link;
+
+        while (
+            node &&
+            node.parentElement &&
+            node.parentElement !== document.body
+        ) {
+            const parent = node.parentElement;
+
+            const candidates = [...parent.children].filter(child => {
+                return (
+                    child.matches?.('a[href*="/app/"], a[href*="/sub/"]') ||
+                    child.querySelector?.('a[href*="/app/"], a[href*="/sub/"]')
+                );
+            });
+
+            // The parent looks like the chart list container.
+            if (candidates.length >= 3) {
+                return node;
+            }
+
+            node = parent;
+        }
+
+        return link;
+    }
+
+    function filterChart() {
+        document
+            .querySelectorAll(
+                'a[href*="store.steampowered.com/app/"],' +
+                'a[href*="store.steampowered.com/sub/"],' +
+                'a[href^="/app/"],' +
+                'a[href^="/sub/"]'
+            )
+            .forEach(link => {
+                let match = link.href.match(/\/app\/(\d+)/);
+
+                if (match && ignoredApps.has(match[1])) {
+                    const row = findChartRow(link);
+
+                    if (!row.dataset.hideIgnoredProcessed) {
+                        console.log(
+                            '[Steam Hide Ignored] hiding app',
+                            match[1],
+                            link.textContent.trim()
+                        );
+                        row.dataset.hideIgnoredProcessed = '1';
+                        row.style.display = 'none';
+                    }
+
+                    return;
+                }
+
+                match = link.href.match(/\/sub\/(\d+)/);
+
+                if (match && ignoredPackages.has(match[1])) {
+                    const row = findChartRow(link);
+                    row.dataset.hideIgnoredProcessed = '1';
+                    row.style.display = 'none';
+                }
+            });
+    }
+
+    filterChart();
+
+    // React may render more rows after clicking "See all 100".
+    const observer = new MutationObserver(() => {
+        filterChart();
+    });
+
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
+})();
