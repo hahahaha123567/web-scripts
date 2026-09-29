@@ -1,8 +1,10 @@
 // ==UserScript==
 // @name         CursorBench Model Provider Toggle
+// @name:zh-CN   CursorBench 模型厂商选择
 // @namespace    https://github.com/hahahaha123567/web-scripts
-// @version      1.0.0
+// @version      1.0.1
 // @description  Select or deselect all models and variants from a provider in CursorBench
+// @description:zh-CN 按模型厂商批量选择或取消 CursorBench 中的模型及其档位
 // @homepageURL  https://github.com/hahahaha123567/web-scripts
 // @match        https://cursor.com/cursorbench*
 // @match        https://cursor.com/*/cursorbench*
@@ -103,9 +105,15 @@
 
         // Click one row per model family. The native page interaction toggles
         // the whole family, so clicking every effort variant would toggle it repeatedly.
-        for (const row of group.rowsByFamily.values()) {
-            const isSelected = row.getAttribute('aria-pressed') === 'true';
-            if (isSelected !== shouldSelect) row.click();
+        setGroupsSelected([group], shouldSelect);
+    }
+
+    function setGroupsSelected(groups, shouldSelect) {
+        for (const group of groups) {
+            for (const row of group.rowsByFamily.values()) {
+                const isSelected = row.getAttribute('aria-pressed') === 'true';
+                if (isSelected !== shouldSelect) row.click();
+            }
         }
     }
 
@@ -146,6 +154,12 @@
                 font-size: 12px;
             }
 
+            #${PANEL_ID} [data-role="actions"] {
+                display: flex;
+                gap: 6px;
+                margin-bottom: 8px;
+            }
+
             #${PANEL_ID} [data-role="groups"] {
                 display: flex;
                 flex-direction: column;
@@ -165,6 +179,11 @@
                 cursor: pointer;
                 font: inherit;
                 text-align: left;
+            }
+
+            #${PANEL_ID} [data-role="actions"] button {
+                flex: 1;
+                justify-content: center;
             }
 
             #${PANEL_ID} button:hover,
@@ -205,11 +224,20 @@
         panel.innerHTML = `
             <div data-role="title">Model providers</div>
             <div data-role="hint">Click to select or deselect all models from a provider</div>
+            <div data-role="actions">
+                <button type="button" data-action="select-all">Select all</button>
+                <button type="button" data-action="deselect-all">Deselect all</button>
+            </div>
             <div data-role="groups"></div>
         `;
         panel.addEventListener('click', event => {
-            const button = event.target.closest('button[data-group]');
+            const button = event.target.closest('button[data-action], button[data-group]');
             if (!button || !panel.contains(button)) return;
+
+            if (button.dataset.action) {
+                setGroupsSelected(collectGroups(), button.dataset.action === 'select-all');
+                return;
+            }
 
             const group = collectGroups().find(item => {
                 return item.name === button.dataset.group;
