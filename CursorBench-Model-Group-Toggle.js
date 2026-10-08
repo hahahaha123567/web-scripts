@@ -2,7 +2,7 @@
 // @name         CursorBench Model Provider Toggle
 // @name:zh-CN   CursorBench 模型厂商选择
 // @namespace    https://github.com/hahahaha123567/web-scripts
-// @version      1.0.1
+// @version      1.0.2
 // @description  Select or deselect all models and variants from a provider in CursorBench
 // @description:zh-CN 按模型厂商批量选择或取消 CursorBench 中的模型及其档位
 // @homepageURL  https://github.com/hahahaha123567/web-scripts
@@ -24,7 +24,7 @@
     const EFFORT_SUFFIX = /\s+(?:Extra High|Max|High|Medium|Low|Minimal)$/i;
     const GROUP_NAME_PATTERN = /^[^\s-]+/;
     const PROVIDER_RULES = [
-        { name: 'Anthropic', pattern: /^(?:Claude|Fable|Opus|Sonnet)\b/i },
+        { name: 'Anthropic', pattern: /^(?:Claude|Fable|Opus|Sonnet|Haiku)\b/i },
         { name: 'OpenAI', pattern: /^(?:GPT|o\d)\b|^GPT-/i },
         { name: 'xAI', pattern: /^Grok\b/i },
         { name: 'Google', pattern: /^Gemini\b/i },
