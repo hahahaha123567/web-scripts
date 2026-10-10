@@ -11,5 +11,5 @@
 | [`CursorBench-Model-Group-Toggle.js`](https://greasyfork.org/scripts/596964-cursorbench-model-provider-toggle) | CursorBench | 按模型厂商一键选择或取消全部模型及档位 |
 | `program-think-reader.js` | 编程随想博客 | 隐藏侧栏和评论区，扩大正文区域 |
 | `wowhead-link-to-cn.js` | Archon | 将 Wowhead 物品链接转换为简体中文页面 |
-| [`Rouman-Eager-Images.js`](docs/rouman-eager-images.md) | rouman5.com | 书籍详情和章节页立即加载全部图片，保留正文图片还原逻辑 |
-| [`Forum-Post-Capture.js`](https://greasyfork.org/scripts/594882-%E8%AE%BA%E5%9D%9B%E4%B8%BB%E8%B4%B4%E9%95%BF%E5%9B%BE-nga-v2ex) | NGA、V2EX | 主楼长图截图：V2EX 包含附言，NGA 包含已加载热评，支持预览并复制图片到剪贴板 |
+| `Rouman-Eager-Images.js` | rouman5.com | 书籍详情和章节页立即加载全部图片，保留正文图片还原逻辑 |
+| [`Forum-Post-Capture.js`](https://greasyfork.org/scripts/594882-%E8%AE%BA%E5%9D%9B%E4%B8%BB%E8%B4%B4%E9%95%BF%E5%9B%BE-nga-v2ex) | NGA、V2EX、Bangumi 小组 | 主楼长图截图：V2EX 包含附言，NGA 包含已加载热评，Bangumi 包含本页表情总数超过 10 的回复（含楼中楼，支持 bgm.tv / bangumi.tv / chii.in），支持预览并复制图片到剪贴板 |

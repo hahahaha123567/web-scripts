@@ -1,14 +1,17 @@
 // ==UserScript==
-// @name         论坛主贴长图 · NGA / V2EX
+// @name         论坛主贴长图 · NGA / V2EX / Bangumi
 // @namespace    https://github.com/hahahaha123567/web-scripts
-// @version      1.4.0
-// @description  将 V2EX 主楼（含附言）、NGA 主楼和已加载热评导出为 Carbon 风格 PNG 长图
+// @version      1.5.0
+// @description  将 V2EX 主楼（含附言）、NGA 主楼和已加载热评、Bangumi 小组主楼和本页表情总数超过 10 的回复导出为 Carbon 风格 PNG 长图
 // @match        https://www.v2ex.com/t/*
 // @match        https://v2ex.com/t/*
 // @match        https://*.nga.cn/read.php*
 // @match        https://ngabbs.com/read.php*
 // @match        https://*.ngabbs.com/read.php*
 // @match        https://nga.178.com/read.php*
+// @match        https://bgm.tv/group/topic/*
+// @match        https://bangumi.tv/group/topic/*
+// @match        https://chii.in/group/topic/*
 // @require      https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js
 // @grant        GM_xmlhttpRequest
 // @connect      *
@@ -36,6 +39,11 @@
                 .comment_c_1,.commentblkoffset{display:none}.comment_c img{max-width:100%}.postcontent{display:block}.collapse,.collapseContent{max-height:none!important;height:auto!important;overflow:visible!important}
                 footer{padding:16px 32px;border-top:1px solid #eceef4;font-size:12px;color:#888;overflow-wrap:anywhere}
                 .capture-stats{margin-top:16px;color:#858995;font-size:13px}
+                .capture-hot-title{font-size:20px}
+                .bangumi-post{margin-top:20px;padding-top:16px;border-top:1px solid #e9ebf2}.bangumi-post:first-child{margin-top:0;padding-top:0;border:0}
+                .bangumi-post .message,.bangumi-post .cmt_sub_content{margin-top:12px}
+                .likes_grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.likes_grid .item{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:6px;background:#f5f6fa;font-size:13px}
+                .likes_grid .emoji{width:20px;height:20px}.bangumi-post .smile{width:auto;max-height:40px}
                 #capture.nga{background:linear-gradient(135deg,#f2dfad,#fff0c9 55%,#ecd5a2);color:#514638}
                 .nga article{background:#fff8e7}.nga .chrome{background:#f6e8c5;border-color:#e7d5ab;color:#877252}
                 .nga .comment_c,.nga pre,.nga blockquote,.nga .quote{background:#f7edcf}
@@ -52,6 +60,7 @@
     }
 
     function extract() {
+        if (/^(bgm\.tv|bangumi\.tv|chii\.in)$/.test(location.hostname)) return extractBangumi();
         const heading = document.querySelector('#Main h1');
         if (heading) {
             // 从主题标题向上寻找同时包含正文的最小容器，不依赖外观 class 或内联样式
@@ -77,6 +86,48 @@
         return { site: 'NGA', title, nodes: [header, body, ...(comments ? [comments] : [])] };
     }
 
+    function extractBangumi() {
+        const root = document.querySelector('.postTopic');
+        const heading = document.querySelector('#pageHeader h1')?.cloneNode(true);
+        heading?.querySelector('span')?.remove();
+        const title = heading?.textContent.trim();
+        if (!root?.querySelector('.topic_content') || !title) {
+            throw new Error('未找到 Bangumi 小组主楼，请等待正文加载完成');
+        }
+        const nodes = [];
+        for (const post of [root, ...document.querySelectorAll('#comment_list .row_reply, #comment_list .sub_reply_bg')]) {
+            // 按回复自身的表情网格计数，避免把楼中楼的表情累计到父楼
+            const reactions = post.querySelector(`#likes_grid_${post.id.slice(5)}`);
+            const count = [...(reactions?.querySelectorAll('.num') || [])]
+                .reduce((sum, num) => sum + (Number(num.textContent.trim()) || 0), 0);
+            if (post !== root && count <= 10) continue;
+            const content = post.querySelector('.topic_content, .message, .cmt_sub_content');
+            if (!content) throw new Error('回复正文尚未加载，请稍后重试');
+            const section = document.createElement('section');
+            section.className = 'bangumi-post';
+            if (post === root) {
+                const h1 = document.createElement('h1');
+                h1.textContent = title;
+                section.append(h1);
+            }
+            const meta = document.createElement('small');
+            meta.textContent = [text('.inner > strong, .userInfo strong', post), text('.re_info small', post), `表情 ${count}`].filter(Boolean).join(' · ');
+            section.append(meta, content.cloneNode(true));
+            if (reactions) section.append(reactions.cloneNode(true));
+            nodes.push(section);
+        }
+        const label = document.createElement('h2');
+        label.className = 'capture-hot-title';
+        label.textContent = '热评（回复表情数>10）';
+        nodes.splice(1, 0, label);
+        if (nodes.length === 2) {
+            const empty = document.createElement('p');
+            empty.textContent = '本页暂无表情总数超过 10 的回复';
+            nodes.push(empty);
+        }
+        return { site: 'Bangumi', title, nodes };
+    }
+
     function copyContent(source, doc) {
         const copy = doc.importNode(source, true);
         const originals = [...source.querySelectorAll('img')];
@@ -85,6 +136,16 @@
             img.src = original.currentSrc || original.src;
             img.removeAttribute('srcset');
             img.loading = 'eager';
+        });
+        // Bangumi 贴贴使用背景图；转成普通图片以复用跨域读取和失败占位流程
+        copy.querySelectorAll('.likes_grid .emoji').forEach(emoji => {
+            const url = emoji.style.backgroundImage.match(/^url\(["']?(.*?)["']?\)$/)?.[1];
+            if (!url) return;
+            const img = doc.createElement('img');
+            img.className = 'emoji';
+            img.alt = '表情';
+            img.src = new URL(url, location.href).href;
+            emoji.replaceWith(img);
         });
         copy.querySelectorAll('picture source').forEach(el => el.remove());
         const topicButtons = copy.querySelector('.topic_buttons');
@@ -190,6 +251,10 @@
     }
 
     function getSourceUrl(site) {
+        if (site === 'Bangumi') {
+            const topic = location.pathname.match(/^\/group\/topic\/(\d+)/)?.[1];
+            return topic ? `${location.origin}/group/topic/${topic}` : '原帖地址未识别';
+        }
         const source = site === 'V2EX'
             ? document.querySelector('link[rel="canonical"]')?.href
             : document.querySelector('#posterinfo0 a[name="l0"][href]')?.href;
@@ -213,7 +278,7 @@
             capture.id = 'capture';
             if (post.site === 'NGA') capture.className = 'nga';
             capture.innerHTML = '<article><div class="chrome"><span class="dots">● ● ●</span><span class="site"></span></div><div class="content"></div><footer></footer></article>';
-            capture.querySelector('.site').textContent = `${post.site} · 主贴${post.site === 'NGA' ? '与热评' : ''}`;
+            capture.querySelector('.site').textContent = `${post.site} · 主贴${['NGA', 'Bangumi'].includes(post.site) ? '与热评' : ''}`;
             capture.querySelector('footer').textContent = getSourceUrl(post.site);
             for (const node of post.nodes) capture.querySelector('.content').append(copyContent(node, doc));
             doc.body.append(capture);
