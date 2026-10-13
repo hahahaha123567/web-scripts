@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         论坛主贴长图 · NGA / V2EX / Bangumi
 // @namespace    https://github.com/hahahaha123567/web-scripts
-// @version      1.5.0
-// @description  将 V2EX 主楼（含附言）、NGA 主楼和已加载热评、Bangumi 小组主楼和本页表情总数超过 10 的回复导出为 Carbon 风格 PNG 长图
+// @version      1.6.0
+// @description  将 V2EX 主楼（含附言）和首页点赞超过 10 的回复、NGA 主楼和已加载热评、Bangumi 小组主楼和本页表情总数超过 10 的回复导出为 Carbon 风格 PNG 长图
 // @match        https://www.v2ex.com/t/*
 // @match        https://v2ex.com/t/*
 // @match        https://*.nga.cn/read.php*
@@ -42,6 +42,7 @@
                 .capture-hot-title{font-size:20px}
                 .bangumi-post{margin-top:20px;padding-top:16px;border-top:1px solid #e9ebf2}.bangumi-post:first-child{margin-top:0;padding-top:0;border:0}
                 .bangumi-post .message,.bangumi-post .cmt_sub_content{margin-top:12px}
+                .v2ex-reply{margin-top:20px;padding-top:16px;border-top:1px solid #e9ebf2}.v2ex-reply .reply_content{margin-top:12px}
                 .likes_grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.likes_grid .item{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:6px;background:#f5f6fa;font-size:13px}
                 .likes_grid .emoji{width:20px;height:20px}.bangumi-post .smile{width:auto;max-height:40px}
                 #capture.nga{background:linear-gradient(135deg,#f2dfad,#fff0c9 55%,#ecd5a2);color:#514638}
@@ -67,7 +68,7 @@
             let root = heading.parentElement;
             while (root && !root.querySelector('.topic_content')) root = root.parentElement;
             if (!root || root.id === 'Main' || root === document.body) throw new Error('无法识别 V2EX 主楼边界，未生成截图');
-            return { site: 'V2EX', title: heading.textContent.trim(), nodes: [root] };
+            return extractV2ex(root, heading.textContent.trim());
         }
         const body = document.querySelector('#postcontent0');
         if (!body || !document.querySelector('#pid0Anchor')) {
@@ -84,6 +85,35 @@
         // NGA 原站 ID 拼作 hightlight；comment_for_0 是另一组贴条评论
         const comments = document.querySelector('#hightlight_for_0');
         return { site: 'NGA', title, nodes: [header, body, ...(comments ? [comments] : [])] };
+    }
+
+    function extractV2ex(root, title) {
+        const page = text('#Main .page_current') || new URL(location.href).searchParams.get('p') || '1';
+        if (Number(page) !== 1) throw new Error('请打开 V2EX 帖子第一页，截图仅包含首页点赞超过 10 的回复');
+        const label = document.createElement('h2');
+        label.className = 'capture-hot-title';
+        label.textContent = '热评（首页回复点赞数>10）';
+        const nodes = [root, label];
+        for (const reply of document.querySelectorAll('#Main .cell[id^="r_"]')) {
+            const content = reply.querySelector('.reply_content');
+            // 只读取正文同级的点赞数，避免把回复正文中的数字当成点赞
+            const metaRoot = content?.parentElement;
+            const count = Number(text(':scope > .small.fade', metaRoot || reply).replace(/,/g, '')) || 0;
+            if (count <= 10) continue;
+            const section = document.createElement('section');
+            section.className = 'v2ex-reply';
+            const meta = document.createElement('small');
+            const floor = text(':scope > .fr .no', metaRoot);
+            meta.textContent = [text(':scope > strong', metaRoot), floor ? `#${floor}` : '', text(':scope > .ago', metaRoot), `点赞 ${count}`].filter(Boolean).join(' · ');
+            section.append(meta, content.cloneNode(true));
+            nodes.push(section);
+        }
+        if (nodes.length === 2) {
+            const empty = document.createElement('p');
+            empty.textContent = '首页暂无点赞超过 10 的回复';
+            nodes.push(empty);
+        }
+        return { site: 'V2EX', title, nodes };
     }
 
     function extractBangumi() {
@@ -278,7 +308,7 @@
             capture.id = 'capture';
             if (post.site === 'NGA') capture.className = 'nga';
             capture.innerHTML = '<article><div class="chrome"><span class="dots">● ● ●</span><span class="site"></span></div><div class="content"></div><footer></footer></article>';
-            capture.querySelector('.site').textContent = `${post.site} · 主贴${['NGA', 'Bangumi'].includes(post.site) ? '与热评' : ''}`;
+            capture.querySelector('.site').textContent = `${post.site} · 主贴与热评`;
             capture.querySelector('footer').textContent = getSourceUrl(post.site);
             for (const node of post.nodes) capture.querySelector('.content').append(copyContent(node, doc));
             doc.body.append(capture);
